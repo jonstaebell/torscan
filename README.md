@@ -5,9 +5,12 @@ Program to scan Jackett for torrents and download with qbittorrent
 
 ## Description
 
-An in-depth paragraph about your project and overview of use.
+Conducts a search for torrents using Jackett and downloads any
+that are found with qbittorrent.
 
-## Getting Started
+Example use case: schedule a cron job every morning to download
+all torrents that match your search string that have been uploaded
+in the previous day (numdays = 1)
 
 ### Dependencies
 
