@@ -15,6 +15,7 @@ in the previous day (numdays = 1)
 ### Dependencies
 
 * Requires Jackett and qbittorrent
+* qbittorrent must have web gui active with bypass authentification enabled 
 * Jackett API Key must be in configuration file
 
 ### Executing program
