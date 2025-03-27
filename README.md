@@ -17,6 +17,7 @@ in the previous day (numdays = 1)
 * Requires Jackett and qbittorrent
 * qbittorrent must have web gui active with bypass authentification enabled 
 * Jackett API Key must be in configuration file
+* Requires pytz. To install: 'pip install pytz'
 
 ### Executing program
 
@@ -46,7 +47,6 @@ The following can only be passed as command line arguments:
 
 Order of precendence of the optional ways to set parameters:
    command line arguments override configuration file settings
-   if numdays or query are missing gets them from user input
 
 ## Authors
 
@@ -55,6 +55,7 @@ jonstaebell@gmail.com
 
 ## Version History
 
+* 0.2 bug fixes, code cleanup 3/27/2025
 * 0.1
     * Initial Release 3/21/2025
 
