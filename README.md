@@ -17,7 +17,6 @@ in the previous day (numdays = 1)
 * Requires Jackett and qbittorrent
 * qbittorrent must have web gui active with bypass authentification enabled 
 * Jackett API Key must be in configuration file
-* Requires pytz. To install: 'pip install pytz'
 
 ### Executing program
 
