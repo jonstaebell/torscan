@@ -1,4 +1,4 @@
-import requests, pytz, sys, re, time, configparser, argparse, os
+import requests, sys, re, time, configparser, argparse, os
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from discord_webhook import DiscordWebhook
@@ -26,7 +26,7 @@ def get_args():
     param_dict["config_file"] = args.config_file
     return param_dict
 
-def get_config(config_file):
+def get_config(config_file): 
     # return paramaters from configuration file
     param_dict = {}
     try:
@@ -37,6 +37,7 @@ def get_config(config_file):
         param_dict["webhook_url"] = Config.get('optional', 'webhook_url')
         param_dict["indexer_name"] = Config.get('optional', 'indexer_name')
         param_dict["query"] = Config.get('optional', 'query')
+        param_dict["savepath"] = Config.get('optional','savepath')
     except:
         print (f"invalid config file {config_file}")
         return {} # return empty list on exceptions
@@ -53,6 +54,7 @@ def combine_params(param_dict_args, param_dict_config):
     # set parameters that can only come from the configuration file
     param_dict["api_key"] = param_dict_config["api_key"]
     param_dict["webhook_url"] = param_dict_config["webhook_url"]
+    param_dict["savepath"] = param_dict_config["savepath"]
     
     # combine CLI arguments with config file arguments (CLI arguments take precedence) 
     # sets parameters to the value of the config file values if the argument value is still the default
@@ -93,6 +95,12 @@ def get_param():
     else:
         return {}
 
+def missing(file,path):
+    for root, dirs, files in os.walk(path):  
+        if file in files:
+            return False
+    return True
+
 def isrecent(given_date_str, numdays): 
     # determines if a given date is within a specified number of days of today
     # takes the given date and the number of days to compare
@@ -105,7 +113,7 @@ def isrecent(given_date_str, numdays):
     given_date = datetime.strptime(given_date_str[:10], date_format)
 
     # Get the current date and time
-    current_date_str = datetime.now(pytz.utc).strftime(date_format)
+    current_date_str = datetime.now().strftime(date_format)
     current_date = datetime.strptime(current_date_str, date_format)
 
     # Calculate the difference in days between the given date and the current date
@@ -129,7 +137,7 @@ def extract_hash(magnet_link, response):
         print("Response Content:", response.text, magnet_link)
         return ""
      
-def download(qbittorrent_url, magnet_link):
+def download(qbittorrent_url, magnet_link, savepath):
     # downloads a single magnet link from qbittorrent
     # takes the url of the qbittorrent client and a magnet link
     # returns the hash of the downloaded torrent if successful, empty string if not successful
@@ -139,24 +147,40 @@ def download(qbittorrent_url, magnet_link):
 
     # Add the magnet link with the session using the correct endpoint
     add_magnet_url = f"{qbittorrent_url}/api/v2/torrents/add"
-    add_magnet_data = {'urls': magnet_link}
+    add_magnet_data = {'urls': magnet_link, 'savepath': savepath} 
     
     response = session.post(add_magnet_url, data=add_magnet_data)
 
     # return hash from magnet if link was added successfully, "" if not
     return extract_hash(magnet_link, response)
 
+
+def too_old(added,expiry):
+    added_on = int(added)
+    current_time = time.time()
+    minutes_stalled = (current_time - added_on) / 60
+    if expiry > 0 and minutes_stalled > expiry:
+        return True
+    else:
+        return False
+    
 def remove_ifdone(qbittorrent_url, torrent, session):
     # checks if a torrent is done downloading, and if so, removes it from qbittorrent
     #
     # Check if the torrent is finished
-    if torrent['state'] == 'pausedUP':  # indicates finished
+    if torrent['state'] == 'pausedUP':  # indicates finished 
         # remove the torrent
         remove_torrent_url = f"{qbittorrent_url}/api/v2/torrents/delete"
         remove_torrent_data = {'hashes': torrent['hash'], 'deleteFiles': 'false'}  # 'false' leaves the downloaded file
         response = session.post(remove_torrent_url, data=remove_torrent_data)
         return response.status_code == 200
     else:
+        expiry = 120 # TODO add to config
+        if too_old(torrent['added_on'],expiry): # stalled too long, delete torrent and the file
+            remove_torrent_url = f"{qbittorrent_url}/api/v2/torrents/delete"
+            remove_torrent_data = {'hashes': torrent['hash'], 'deleteFiles': 'true'}  # 'true' deletes the downloaded file
+            response = session.post(remove_torrent_url, data=remove_torrent_data)
+            return response.status_code == 200 #TODO somehow indicate when torrents stall?
         return False # must still be downloading
                 
 def remove(qbittorrent_url, torrent_hash):
@@ -214,8 +238,8 @@ def get_magnets(jackett_host, params):
 
         for result in data['Results']: # for each result from Jackett,
             tor_dict = get_dict(result) # convert response to a dictionary
-            # check to see if it's recent, has seeders, and has a magnet link
-            if isrecent(tor_dict["pub_date"], params["numdays"]) and (tor_dict["seeders"] > 0) and (tor_dict["magnet"] is not None):
+            # check to see if it's recent, has seeders, has a magnet link, and is missing from the savepath directory
+            if isrecent(tor_dict["pub_date"], params["numdays"]) and (tor_dict["seeders"] > 0) and (tor_dict["magnet"] is not None) and missing(tor_dict["title"],params["savepath"]): 
                 magnets.append(tor_dict["magnet"]) # if so, add to list of magnets to be downloaded
         return magnets
 
@@ -224,7 +248,7 @@ def get_magnets(jackett_host, params):
         print("Error occurred in getting magnets from Jackett")
         return []
 
-def request_downloads(magnets, qbittorrent_url):
+def request_downloads(magnets, qbittorrent_url,savepath):
     # adds a list of magnet links to qbittorrent client
     # takes a list of magnet links and url of the qbittorrent client
     # returns a list of hashes from qbittorrent
@@ -232,7 +256,7 @@ def request_downloads(magnets, qbittorrent_url):
     hash_list = [] 
     if magnets != []:
         for magnet in magnets:
-            new_hash = download(qbittorrent_url, magnet)
+            new_hash = download(qbittorrent_url, magnet, savepath)
             if new_hash != "":
                 hash_list.append(new_hash)
         # wait for 30 seconds per download for them to complete

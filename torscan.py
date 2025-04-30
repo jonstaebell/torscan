@@ -18,7 +18,7 @@ def main():
         magnets = get_magnets (jackett_host, params)
         
         # send download requests to qbittorrent
-        hash_list = request_downloads(magnets, qbittorrent_url)
+        hash_list = request_downloads(magnets, qbittorrent_url,params["savepath"])
         num_downloads = len (hash_list)
 
         if num_downloads > 0:
