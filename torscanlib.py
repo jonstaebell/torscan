@@ -137,17 +137,18 @@ def extract_hash(magnet_link, response):
         print("Response Content:", response.text, magnet_link)
         return ""
      
-def download(qbittorrent_url, magnet_link, savepath):
+def download(session,qbittorrent_url, magnet_link, savepath):
     # downloads a single magnet link from qbittorrent
     # takes the url of the qbittorrent client and a magnet link
     # returns the hash of the downloaded torrent if successful, empty string if not successful
     #
     # Start a session
-    session = requests.Session()
+    # session = requests.Session()
 
     # Add the magnet link with the session using the correct endpoint
     add_magnet_url = f"{qbittorrent_url}/api/v2/torrents/add"
-    add_magnet_data = {'urls': magnet_link, 'savepath': savepath} 
+    # add_magnet_data = {'urls': magnet_link, 'savepath': savepath} 
+    add_magnet_data = {'urls': magnet_link} 
     
     response = session.post(add_magnet_url, data=add_magnet_data)
 
