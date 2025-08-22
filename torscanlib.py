@@ -3,6 +3,18 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 from discord_webhook import DiscordWebhook
 
+def qb_login(params):
+    session = requests.Session()
+    login = session.post(
+        f"{params['qbittorrent_url']}/api/v2/auth/login",
+        data={"username": params['qb_user'], "password": params['qb_pass']}
+    )
+
+    if login.status_code == 200 and login.text == "Ok.":
+        return session
+    else:
+        raise Exception(f"Login failed: {login.status_code} {login.text}")
+
 def get_args():
     # return parameters from CLI arguments
     # Define the argument parser
@@ -169,7 +181,7 @@ def remove_ifdone(qbittorrent_url, torrent, session):
     # checks if a torrent is done downloading, and if so, removes it from qbittorrent
     #
     # Check if the torrent is finished
-    if torrent['state'] == 'pausedUP':  # indicates finished 
+    if torrent['state'] == 'stoppedUP':  # indicates finished 
         # remove the torrent
         remove_torrent_url = f"{qbittorrent_url}/api/v2/torrents/delete"
         remove_torrent_data = {'hashes': torrent['hash'], 'deleteFiles': 'false'}  # 'false' leaves the downloaded file
@@ -184,13 +196,11 @@ def remove_ifdone(qbittorrent_url, torrent, session):
             return response.status_code == 200 #TODO somehow indicate when torrents stall?
         return False # must still be downloading
                 
-def remove(qbittorrent_url, torrent_hash):
+def remove(session, qbittorrent_url, torrent_hash):
     # tries to remove single torrent hash from qbittorrent
     # takes the qbittorrent client url and a hash
     # returns True if hash successfully removed, False if not
     # 
-    # Start a session, get list of hashes currently in qbittorrent
-    session = requests.Session()
     torrents_url = f"{qbittorrent_url}/api/v2/torrents/info"
     response = session.get(torrents_url)
 
@@ -249,7 +259,7 @@ def get_magnets(jackett_host, params):
         print("Error occurred in getting magnets from Jackett")
         return []
 
-def request_downloads(magnets, qbittorrent_url,savepath):
+def request_downloads(session,magnets, qbittorrent_url,savepath):
     # adds a list of magnet links to qbittorrent client
     # takes a list of magnet links and url of the qbittorrent client
     # returns a list of hashes from qbittorrent
@@ -257,21 +267,21 @@ def request_downloads(magnets, qbittorrent_url,savepath):
     hash_list = [] 
     if magnets != []:
         for magnet in magnets:
-            new_hash = download(qbittorrent_url, magnet, savepath)
+            new_hash = download(session,qbittorrent_url, magnet, savepath)
             if new_hash != "":
                 hash_list.append(new_hash)
         # wait for 30 seconds per download for them to complete
         time.sleep(30*len(hash_list))
     return hash_list
 
-def remove_list(hash_list, qbittorrent_url):
+def remove_list(session,hash_list, qbittorrent_url):
     # removes a list of downloads from qbittorrent
     # takes a list of hashes and url of the qbittorrent client
     # 
     new_hash_list = []
     while len(hash_list) > 0: # try to remove each member of hash_list
         for t in range(0,len(hash_list)):
-            if not remove(qbittorrent_url, hash_list[t]):
+            if not remove(session,qbittorrent_url, hash_list[t]):
                 new_hash_list.append(hash_list[t]) # if remove fails, add to new_hash_list
         hash_list = new_hash_list
         new_hash_list = []

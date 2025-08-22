@@ -17,12 +17,14 @@ def main():
         # Get list of magnet links from Jackett
         magnets = get_magnets (jackett_host, params)
         
+        # log in to qbittorrent
+        session = qb_login(params)
         # send download requests to qbittorrent
-        hash_list = request_downloads(magnets, qbittorrent_url,params["savepath"])
+        hash_list = request_downloads(session,magnets, qbittorrent_url,params["savepath"])
         num_downloads = len (hash_list)
 
         if num_downloads > 0:
-            remove_list(hash_list, qbittorrent_url) # remove requests from qbittorrent
+            remove_list(session,hash_list, qbittorrent_url) # remove requests from qbittorrent
 
         notify (params, num_downloads) # print message and if provided, invoke discord webhook
 
